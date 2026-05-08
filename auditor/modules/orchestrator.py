@@ -9,6 +9,7 @@ from auditor.modules.iam_audit import audit_iam
 from auditor.modules.cost_optimization import audit_cost
 from auditor.modules.exposure_audit import audit_exposure
 from auditor.modules.aws_cyber_audit import audit_cyber
+from auditor.modules.cis_checks import audit_cis_compliance
 
 logger = logging.getLogger(__name__)
 central = ZoneInfo("America/Chicago")
@@ -21,7 +22,8 @@ AUDIT_FUNCTIONS = {
     "iam": audit_iam,
     "cost_optimization": audit_cost,
     "exposure": audit_exposure,
-    "cyber": audit_cyber
+    "cyber": audit_cyber,
+    "cis_compliance": audit_cis_compliance,
 }
 
 def get_sub_accounts(session, use_organizations=False):

@@ -24,6 +24,7 @@ build/
 .env
 .env.*
 *.secret
+.streamlit/secrets.toml
 
 # SaaS frontend build artifacts
 frontend/.next/

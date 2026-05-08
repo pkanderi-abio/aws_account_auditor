@@ -2,7 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Severity text */
 .sev-critical { color: #dc2626; }
 .sev-high     { color: #f97316; }
 .sev-medium   { color: #eab308; }
 .sev-low      { color: #22c55e; }
+
+/* Severity dot/fill */
+.sev-dot-critical { background-color: #dc2626; }
+.sev-dot-high     { background-color: #f97316; }
+.sev-dot-medium   { background-color: #eab308; }
+.sev-dot-low      { background-color: #22c55e; }
+.sev-dot-unknown  { background-color: #6b7280; }
+
+/* Severity card backgrounds */
+.sev-bg-critical { background-color: #fef2f2; }
+.sev-bg-high     { background-color: #fff7ed; }
+.sev-bg-medium   { background-color: #fefce8; }
+.sev-bg-low      { background-color: #f0fdf4; }
+
+/* Severity top borders */
+.sev-border-critical { border-top-color: #dc2626; }
+.sev-border-high     { border-top-color: #f97316; }
+.sev-border-medium   { border-top-color: #eab308; }
+.sev-border-low      { border-top-color: #22c55e; }
+
+/* Risk distribution bar segments */
+.sev-bar-critical { background-color: #dc2626; }
+.sev-bar-high     { background-color: #f97316; }
+.sev-bar-medium   { background-color: #eab308; }
+.sev-bar-low      { background-color: #22c55e; }
+
+/* Dynamic-width progress bars — set --bar-pct via inline style */
+.bar-dynamic { width: var(--bar-pct, 0%); }

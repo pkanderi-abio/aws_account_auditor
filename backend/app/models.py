@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, Integer, Text, ForeignKey, ARRAY
+from sqlalchemy import Column, String, Boolean, DateTime, Integer, Text, ForeignKey, ARRAY, Float
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.database import Base
 
@@ -58,4 +58,39 @@ class Finding(Base):
     recommendation = Column(Text, default="")
     timestamp = Column(DateTime)
     compliance = Column(JSONB, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    # AI-generated remediation (populated on demand)
+    ai_remediation = Column(JSONB, nullable=True)
+
+
+class AiAnalysis(Base):
+    """Stores LLM-generated analysis for a completed audit job."""
+    __tablename__ = "ai_analyses"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    job_id = Column(UUID(as_uuid=True), ForeignKey("audit_jobs.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    headline = Column(Text, default="")
+    risk_level = Column(Text, default="")
+    summary = Column(Text, default="")
+    top_risks = Column(ARRAY(Text), default=lambda: [])
+    quick_wins = Column(ARRAY(Text), default=lambda: [])
+    narrative = Column(Text, default="")
+    executive_report = Column(Text, nullable=True)
+    raw_response = Column(JSONB, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ComplianceScore(Base):
+    """Per-framework compliance scores for an audit job."""
+    __tablename__ = "compliance_scores"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    job_id = Column(UUID(as_uuid=True), ForeignKey("audit_jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), nullable=False, index=True)
+    framework = Column(Text, nullable=False)       # CIS | PCI | SOC2 | HIPAA | NIST
+    score = Column(Float, default=0.0)             # 0–100
+    pass_count = Column(Integer, default=0)
+    fail_count = Column(Integer, default=0)
+    total_controls = Column(Integer, default=0)
+    controls_detail = Column(JSONB, default=dict)  # { "1.4": "PASS", "1.5": "FAIL", ... }
     created_at = Column(DateTime, default=datetime.utcnow)
