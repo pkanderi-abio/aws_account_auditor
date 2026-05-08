@@ -26,18 +26,34 @@ with st.sidebar:
         db.logout(); st.rerun()
 
 st.markdown("""
-<div style="background:linear-gradient(135deg,#0f172a,#1e293b);color:white;padding:2rem;border-radius:16px;margin-bottom:1rem">
+<div style="background:linear-gradient(135deg,#0f172a,#1e3a5f);color:white;padding:2rem;border-radius:16px;margin-bottom:1rem">
   <h1 style="margin:0">🤖 AI Security Analyst</h1>
-  <p style="margin:0.5rem 0 0;color:#94a3b8">Powered by Ollama · All data stays on your machine</p>
+  <p style="margin:0.5rem 0 0;color:#94a3b8">Powered by Groq (cloud · free) or Ollama (local)</p>
 </div>""", unsafe_allow_html=True)
 
-# ── Ollama status ─────────────────────────────────────────────────────────────
+# ── AI status ─────────────────────────────────────────────────────────────────
 ai_ok, ai_msg = ai_client.is_available()
 if ai_ok:
-    st.success(f"✅ Ollama connected — model: `{ai_msg}`")
+    icon = "☁️" if "Groq" in ai_msg else "💻"
+    st.success(f"✅ AI connected — {icon} {ai_msg}")
 else:
-    st.warning(f"⚠️ Ollama unavailable: {ai_msg}")
-    st.info("Start Ollama locally: `ollama serve` and `ollama pull llama3.2`")
+    st.warning(f"⚠️ {ai_msg}")
+    with st.expander("How to enable AI"):
+        st.markdown("""
+**Option 1 — Groq (free, works on Streamlit Cloud):**
+1. Create a free account at [console.groq.com](https://console.groq.com)
+2. Generate an API key
+3. Add to Streamlit secrets:
+```toml
+GROQ_API_KEY = "gsk_..."
+```
+
+**Option 2 — Ollama (local only):**
+```bash
+ollama serve
+ollama pull llama3.2
+```
+""")
 
 # ── Job selector ──────────────────────────────────────────────────────────────
 jobs = [j for j in db.list_audits() if j["status"] == "completed"]

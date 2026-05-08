@@ -1,6 +1,6 @@
 """
-Synchronous Ollama client for Streamlit.
-All functions return gracefully if Ollama is unavailable (e.g. on Streamlit Cloud).
+AI client — Groq (free, cloud) preferred; falls back to Ollama (local).
+Set GROQ_API_KEY in Streamlit secrets or environment to enable cloud AI.
 """
 from __future__ import annotations
 import json
@@ -11,34 +11,74 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-OLLAMA_BASE  = os.environ.get("OLLAMA_URL", "http://localhost:11434")
-DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2")
-TIMEOUT = 180
+# ── Groq ──────────────────────────────────────────────────────────────────────
+GROQ_BASE  = "https://api.groq.com/openai/v1"
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant")
+
+# ── Ollama ────────────────────────────────────────────────────────────────────
+OLLAMA_BASE   = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+OLLAMA_MODEL  = os.environ.get("OLLAMA_MODEL", "llama3.2")
+TIMEOUT = 120
+
+
+def _groq_key() -> str:
+    """Read Groq API key from Streamlit secrets or env."""
+    try:
+        import streamlit as st
+        return str(st.secrets.get("GROQ_API_KEY", "") or st.secrets.get("groq", {}).get("api_key", ""))
+    except Exception:
+        return os.environ.get("GROQ_API_KEY", "")
 
 
 def is_available() -> tuple[bool, str]:
-    """Returns (available, model_name_or_error)."""
+    """Returns (available, description). Prefers Groq over Ollama."""
+    # Try Groq first
+    key = _groq_key()
+    if key:
+        try:
+            r = requests.get(f"{GROQ_BASE}/models",
+                             headers={"Authorization": f"Bearer {key}"}, timeout=5)
+            if r.status_code == 200:
+                return True, f"Groq · {GROQ_MODEL}"
+        except Exception:
+            pass
+        return False, "Groq API key set but unreachable"
+
+    # Fall back to Ollama
     try:
-        resp = requests.get(f"{OLLAMA_BASE}/api/tags", timeout=5)
-        resp.raise_for_status()
-        models = [m["name"] for m in resp.json().get("models", [])]
-        if any(DEFAULT_MODEL in m for m in models):
-            return True, DEFAULT_MODEL
+        r = requests.get(f"{OLLAMA_BASE}/api/tags", timeout=5)
+        r.raise_for_status()
+        models = [m["name"] for m in r.json().get("models", [])]
+        if any(OLLAMA_MODEL in m for m in models):
+            return True, f"Ollama · {OLLAMA_MODEL}"
         if models:
-            return False, f"Model '{DEFAULT_MODEL}' not found. Available: {', '.join(models)}"
-        return False, "No models pulled yet. Run: ollama pull llama3.2"
-    except Exception as exc:
-        return False, f"Ollama not running at {OLLAMA_BASE}: {exc}"
+            return False, f"Ollama running but model '{OLLAMA_MODEL}' not found. Run: ollama pull {OLLAMA_MODEL}"
+        return False, "Ollama running but no models pulled"
+    except Exception:
+        return False, "No AI available. Add GROQ_API_KEY to Streamlit secrets (free at console.groq.com)"
 
 
 def _complete(messages: list[dict]) -> str:
-    resp = requests.post(
+    """Send chat messages and return the reply text."""
+    key = _groq_key()
+    if key:
+        r = requests.post(
+            f"{GROQ_BASE}/chat/completions",
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            json={"model": GROQ_MODEL, "messages": messages, "temperature": 0.3},
+            timeout=TIMEOUT,
+        )
+        r.raise_for_status()
+        return r.json()["choices"][0]["message"]["content"]
+
+    # Ollama fallback
+    r = requests.post(
         f"{OLLAMA_BASE}/api/chat",
-        json={"model": DEFAULT_MODEL, "messages": messages, "stream": False},
+        json={"model": OLLAMA_MODEL, "messages": messages, "stream": False},
         timeout=TIMEOUT,
     )
-    resp.raise_for_status()
-    return resp.json()["message"]["content"]
+    r.raise_for_status()
+    return r.json()["message"]["content"]
 
 
 def _findings_snippet(findings: list[dict], n: int = 40) -> str:
@@ -139,7 +179,7 @@ def chat(question: str, findings: list[dict], history: list[dict] | None = None)
         {"role": "assistant", "content": "Understood. I have reviewed the audit findings and am ready to answer your questions."},
     ]
     if history:
-        messages.extend(history)
+        messages.extend(history[-10:])  # keep last 10 turns to stay within context
     messages.append({"role": "user", "content": question})
     return _complete(messages)
 

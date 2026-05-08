@@ -37,38 +37,49 @@ st.markdown(f"**User ID:** `{st.session_state.get('user_id', '—')}`")
 st.divider()
 
 # ── AI / Ollama settings ──────────────────────────────────────────────────────
-st.subheader("🤖 AI / Ollama")
+st.subheader("🤖 AI Provider")
 ai_ok, ai_msg = ai_client.is_available()
 
 if ai_ok:
-    st.success(f"Ollama connected — model: `{ai_msg}`")
+    icon = "☁️" if "Groq" in ai_msg else "💻"
+    st.success(f"{icon} AI connected — {ai_msg}")
 else:
-    st.warning(f"Ollama unavailable: {ai_msg}")
+    st.warning(f"AI unavailable: {ai_msg}")
 
 with st.expander("Setup instructions", expanded=not ai_ok):
     st.markdown("""
-**Install Ollama** (macOS/Linux):
+### Option 1 — Groq (recommended · free · works on Streamlit Cloud)
+
+1. Sign up free at **[console.groq.com](https://console.groq.com)**
+2. Create an API key
+3. Add to Streamlit secrets (App settings → Secrets):
+```toml
+GROQ_API_KEY = "gsk_..."
+```
+Default model: `llama-3.1-8b-instant`. Override with:
+```toml
+GROQ_MODEL = "llama-3.3-70b-versatile"
+```
+
+---
+
+### Option 2 — Ollama (local only · no API key needed)
+
 ```bash
+# Install
 curl -fsSL https://ollama.com/install.sh | sh
-```
 
-**Pull the default model:**
-```bash
+# Pull model
 ollama pull llama3.2
-```
 
-**Start the server:**
-```bash
+# Start
 ollama serve
 ```
-
-**Use a different model** — set the environment variable before running Streamlit:
+Override model:
 ```bash
 export OLLAMA_MODEL=mistral
 streamlit run streamlit_app/app.py
 ```
-
-**On Streamlit Cloud:** AI features are unavailable (Ollama must run locally). All other features work normally.
 """)
 
 st.divider()
