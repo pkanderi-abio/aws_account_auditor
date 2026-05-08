@@ -41,7 +41,7 @@ def _anon_client() -> "Client":
 @st.cache_resource
 def _service_client() -> "Client":
     url = _secrets("supabase.url") or _secrets("NEXT_PUBLIC_SUPABASE_URL")
-    key = _secrets("supabase.service_role_key") or _secrets("SUPABASE_SERVICE_ROLE_KEY")
+    key = _secrets("supabase.service_role_key") or _secrets("SUPABASE_SERVICE_ROLE_KEY") or _secrets("SUPABASE_JWT_SECRET")
     if not url or not key:
         raise RuntimeError("Supabase service role key must be configured")
     return create_client(url, key)

@@ -51,11 +51,25 @@ def run_audit(job_id: str, user_id: str, config: dict, account_ids: list[str]):
         all_findings: list[dict] = []
         audited: list[str] = []
 
-        # Build deployer session
+        # Build deployer session — read creds from env or Streamlit secrets
+        def _get_secret(key: str) -> str | None:
+            try:
+                import streamlit as _st
+                parts = key.split(".")
+                obj = _st.secrets
+                for part in parts:
+                    obj = obj[part]
+                return str(obj) or None
+            except Exception:
+                return os.environ.get(key.split(".")[-1].upper()) or None
+
+        aws_key = os.environ.get("AWS_ACCESS_KEY_ID") or _get_secret("aws.AWS_ACCESS_KEY_ID")
+        aws_secret = os.environ.get("AWS_SECRET_ACCESS_KEY") or _get_secret("aws.AWS_SECRET_ACCESS_KEY")
+
         app_sts = boto3.client(
             "sts",
-            aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-            aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
+            aws_access_key_id=aws_key,
+            aws_secret_access_key=aws_secret,
             region_name=config.get("regions", ["us-east-1"])[0],
         )
         deployer_session = _assume_role(
