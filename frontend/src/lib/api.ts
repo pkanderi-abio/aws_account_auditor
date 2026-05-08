@@ -31,6 +31,9 @@ export const api = {
   removeAccount: (id: string)    => req<void>("DELETE",       `/api/accounts/${id}`),
   triggerAudit: ()               => req<AuditJob>("POST",    "/api/audits"),
   listAudits: ()                 => req<AuditJob[]>("GET",   "/api/audits"),
+  deleteAudit: (id: string)      => req<void>("DELETE",      `/api/audits/${id}`),
+  deleteAudits: (status?: string) => req<void>("DELETE",     `/api/audits${status ? `?status=${status}` : ""}`),
+  deleteConfig: ()               => req<void>("DELETE",      "/api/config"),
   getAudit: (id: string)         => req<AuditJob>("GET",     `/api/audits/${id}`),
   getFindings: (id: string, params?: Record<string, string>) => {
     const qs = params ? "?" + new URLSearchParams(params).toString() : "";

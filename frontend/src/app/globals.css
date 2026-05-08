@@ -1,3 +1,8 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.sev-critical { color: #dc2626; }
+.sev-high     { color: #f97316; }
+.sev-medium   { color: #eab308; }
+.sev-low      { color: #22c55e; }

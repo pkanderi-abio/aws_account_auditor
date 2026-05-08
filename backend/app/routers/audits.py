@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import get_current_user
 from app.database import get_db
@@ -46,6 +46,35 @@ async def list_audits(
         select(AuditJob).where(AuditJob.user_id == UUID(user_id)).order_by(AuditJob.created_at.desc()).limit(limit)
     )
     return rows.all()
+
+
+@router.delete("", status_code=204)
+async def delete_audits(
+    user_id: str = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    status: Optional[str] = Query(None, description="Filter by status, e.g. 'failed'"),
+):
+    uid = UUID(user_id)
+    q = select(AuditJob.id).where(AuditJob.user_id == uid)
+    if status:
+        q = q.where(AuditJob.status == status)
+    job_ids = (await db.scalars(q)).all()
+    if job_ids:
+        await db.execute(delete(Finding).where(Finding.job_id.in_(job_ids), Finding.user_id == uid))
+        await db.execute(delete(AuditJob).where(AuditJob.id.in_(job_ids), AuditJob.user_id == uid))
+        await db.commit()
+
+
+@router.delete("/{job_id}", status_code=204)
+async def delete_audit(job_id: str, user_id: str = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    uid = UUID(user_id)
+    jid = UUID(job_id)
+    job = await db.scalar(select(AuditJob).where(AuditJob.id == jid, AuditJob.user_id == uid))
+    if not job:
+        raise HTTPException(status_code=404, detail="Audit job not found")
+    await db.execute(delete(Finding).where(Finding.job_id == jid, Finding.user_id == uid))
+    await db.delete(job)
+    await db.commit()
 
 
 @router.get("/{job_id}", response_model=AuditJobOut)

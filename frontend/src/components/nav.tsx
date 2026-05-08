@@ -7,7 +7,7 @@ import clsx from "clsx";
 const links = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/audits",    label: "Audits"    },
-  { href: "/config",    label: "Settings"  },
+  { href: "/settings",  label: "Settings"  },
 ];
 
 export function Nav() {
@@ -31,7 +31,7 @@ export function Nav() {
           </Link>
         ))}
       </div>
-      <button onClick={signOut} className="text-sm text-gray-500 hover:text-gray-800">Sign out</button>
+      <button type="button" onClick={signOut} className="text-sm text-gray-500 hover:text-gray-800">Sign out</button>
     </nav>
   );
 }

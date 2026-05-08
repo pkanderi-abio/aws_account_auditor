@@ -20,11 +20,16 @@ from auditor.modules.orchestrator import run_all_audits
 
 logger = logging.getLogger(__name__)
 
-DATABASE_URL = os.environ["DATABASE_URL"]
-# Celery workers use sync SQLAlchemy
-engine = create_engine(DATABASE_URL)
-
 US_REGIONS = ["us-east-1", "us-east-2", "us-west-1", "us-west-2"]
+
+_engine = None
+
+def _get_engine():
+    global _engine
+    if _engine is None:
+        url = os.environ["DATABASE_URL"].replace("postgresql+asyncpg://", "postgresql://")
+        _engine = create_engine(url)
+    return _engine
 
 
 def _assume_role(sts, role_arn: str, session_name: str, external_id: str):
@@ -42,7 +47,7 @@ def _assume_role(sts, role_arn: str, session_name: str, external_id: str):
 
 @celery_app.task(bind=True, max_retries=0)
 def run_audit_task(self: Task, job_id: str, user_id: str):
-    with Session(engine) as db:
+    with Session(_get_engine()) as db:
         job = db.get(AuditJob, UUID(job_id))
         if not job:
             return
@@ -56,13 +61,6 @@ def run_audit_task(self: Task, job_id: str, user_id: str):
             if not config:
                 raise RuntimeError("No AWS configuration found for user")
 
-            accounts_rows = db.scalars(
-                select(AwsAccount).where(AwsAccount.user_id == UUID(user_id))
-            ).all()
-            account_ids = [a.account_id for a in accounts_rows]
-            if not account_ids:
-                raise RuntimeError("No AWS accounts configured")
-
             regions = config.regions or US_REGIONS
 
             # Assume customer's deployer role using the SaaS app's own IAM credentials
@@ -73,6 +71,26 @@ def run_audit_task(self: Task, job_id: str, user_id: str):
                 "SaaSAuditDeployer",
                 config.deployer_external_id,
             )
+
+            if config.use_organizations:
+                # Discover accounts via AWS Organizations through the deployer session
+                org_client = deployer_session.client("organizations", region_name="us-east-1")
+                paginator = org_client.get_paginator("list_accounts")
+                account_ids = [
+                    acct["Id"]
+                    for page in paginator.paginate()
+                    for acct in page["Accounts"]
+                    if acct["Status"] == "ACTIVE"
+                ]
+                if not account_ids:
+                    raise RuntimeError("No active accounts found in AWS Organizations")
+            else:
+                accounts_rows = db.scalars(
+                    select(AwsAccount).where(AwsAccount.user_id == UUID(user_id))
+                ).all()
+                account_ids = [a.account_id for a in accounts_rows]
+                if not account_ids:
+                    raise RuntimeError("No AWS accounts configured")
 
             all_findings = []
             audited_accounts = []

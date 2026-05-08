@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import get_current_user
 from app.database import get_db
-from app.models import AwsConfig
+from app.models import AwsConfig, AwsAccount
 from app.schemas import AwsConfigIn, AwsConfigOut
 from uuid import UUID
 
@@ -16,6 +16,14 @@ async def get_config(user_id: str = Depends(get_current_user), db: AsyncSession 
     if not row:
         raise HTTPException(status_code=404, detail="No configuration found")
     return row
+
+
+@router.delete("", status_code=204)
+async def delete_config(user_id: str = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    uid = UUID(user_id)
+    await db.execute(delete(AwsAccount).where(AwsAccount.user_id == uid))
+    await db.execute(delete(AwsConfig).where(AwsConfig.user_id == uid))
+    await db.commit()
 
 
 @router.put("", response_model=AwsConfigOut)

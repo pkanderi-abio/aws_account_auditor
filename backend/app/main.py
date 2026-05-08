@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base
-from app.routers import config, accounts, audits
+from app.routers import config, accounts, audits, auth
 import os
 
 app = FastAPI(title="AWS Auditor SaaS", version="1.0.0")
@@ -14,6 +14,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(config.router, prefix="/api/config", tags=["config"])
 app.include_router(accounts.router, prefix="/api/accounts", tags=["accounts"])
 app.include_router(audits.router, prefix="/api/audits", tags=["audits"])
