@@ -3,7 +3,10 @@ Entry point for Streamlit Community Cloud.
 Run locally:  streamlit run streamlit_app/app.py
 """
 import sys, os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Insert repo root so both `streamlit_app` and `auditor` packages resolve
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
 
 import streamlit as st
 from streamlit_app.lib import db
