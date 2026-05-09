@@ -188,7 +188,7 @@ if latest:
                 xaxis=dict(showgrid=True, gridcolor="#f1f5f9"),
                 yaxis=dict(showgrid=False, tickfont=dict(size=12)),
             )
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width="stretch")
 
     # ── Overall risk indicator ─────────────────────────────────────────────────
     st.markdown(f"""
