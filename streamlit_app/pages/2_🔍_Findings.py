@@ -162,8 +162,11 @@ for f in filtered:
                 if st.button("🤖 Generate Remediation", key=f"rem_{f['id']}"):
                     with st.spinner("Generating remediation…"):
                         rem = ai_client.generate_remediation(f)
-                        db.save_finding_remediation(f["id"], rem)
-                        st.success("Remediation generated!")
-                        st.rerun()
+                        ok, err = db.save_finding_remediation(f["id"], rem)
+                        if ok:
+                            st.success("Remediation generated!")
+                            st.rerun()
+                        else:
+                            st.error(err)
             else:
                 st.caption("💡 Start Ollama locally to enable AI remediation")

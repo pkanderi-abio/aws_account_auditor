@@ -340,5 +340,18 @@ def save_ai_analysis(job_id: str, user_id: str, result: dict):
         _service_client().table("ai_analyses").insert(row).execute()
 
 
-def save_finding_remediation(finding_id: str, remediation: dict):
-    _service_client().table("findings").update({"ai_remediation": remediation}).eq("id", finding_id).execute()
+def save_finding_remediation(finding_id: str, remediation: dict) -> tuple[bool, str]:
+    """Returns (success, error_message)."""
+    try:
+        _service_client().table("findings").update({"ai_remediation": remediation}).eq("id", finding_id).execute()
+        return True, ""
+    except Exception as exc:
+        msg = str(exc)
+        # Surface a clear action if the column is simply missing
+        if "ai_remediation" in msg or "column" in msg.lower() or "APIError" in msg:
+            return False, (
+                "The `ai_remediation` column is missing from the findings table. "
+                "Run this in your Supabase SQL Editor and retry:\n\n"
+                "```sql\nalter table findings add column if not exists ai_remediation jsonb;\n```"
+            )
+        return False, msg
