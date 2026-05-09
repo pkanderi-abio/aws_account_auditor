@@ -125,23 +125,39 @@ for f in filtered:
             existing_rem = f.get("ai_remediation")
             if existing_rem:
                 st.markdown("**🤖 AI Remediation**")
-                with st.expander("View remediation script", expanded=False):
+                with st.expander("View remediation", expanded=False):
                     if existing_rem.get("explanation"):
-                        st.markdown(f"**Why it matters:** {existing_rem['explanation']}")
+                        st.info(f"**Why it matters:** {existing_rem['explanation']}")
+                    if existing_rem.get("risk_if_not_fixed"):
+                        st.warning(f"⚠️ **Risk if not fixed:** {existing_rem['risk_if_not_fixed']}")
                     if existing_rem.get("steps"):
-                        st.markdown("**Steps:**")
+                        st.markdown("**Remediation steps:**")
                         for i, step in enumerate(existing_rem["steps"], 1):
                             st.markdown(f"{i}. {step}")
-                    if existing_rem.get("cli_script"):
-                        st.markdown("**AWS CLI:**")
-                        st.code(existing_rem["cli_script"], language="bash")
-                    if existing_rem.get("terraform_snippet"):
-                        st.markdown("**Terraform:**")
-                        st.code(existing_rem["terraform_snippet"], language="hcl")
                     if existing_rem.get("estimated_effort"):
                         st.caption(f"⏱ Estimated effort: {existing_rem['estimated_effort']}")
-                    if existing_rem.get("risk_if_not_fixed"):
-                        st.warning(f"⚠️ Risk: {existing_rem['risk_if_not_fixed']}")
+                    tabs_rem = []
+                    tab_labels = []
+                    if existing_rem.get("cli_script"):
+                        tab_labels.append("🖥 AWS CLI")
+                    if existing_rem.get("cloudformation_snippet"):
+                        tab_labels.append("☁️ CloudFormation")
+                    if existing_rem.get("terraform_snippet"):
+                        tab_labels.append("🏗 Terraform")
+                    if tab_labels:
+                        tabs_rem = st.tabs(tab_labels)
+                        idx = 0
+                        if existing_rem.get("cli_script"):
+                            with tabs_rem[idx]:
+                                st.code(existing_rem["cli_script"], language="bash")
+                            idx += 1
+                        if existing_rem.get("cloudformation_snippet"):
+                            with tabs_rem[idx]:
+                                st.code(existing_rem["cloudformation_snippet"], language="yaml")
+                            idx += 1
+                        if existing_rem.get("terraform_snippet"):
+                            with tabs_rem[idx]:
+                                st.code(existing_rem["terraform_snippet"], language="hcl")
             elif ai_ok:
                 if st.button("🤖 Generate Remediation", key=f"rem_{f['id']}"):
                     with st.spinner("Generating remediation…"):

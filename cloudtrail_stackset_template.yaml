@@ -1,0 +1,303 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Enable AWS CloudTrail in every target account.
+  Deploys a KMS-encrypted S3 bucket for logs, a CloudWatch Logs group,
+  and a multi-region management-event trail with log-file validation.
+  Deploy via CloudFormation StackSet from Control Tower / Management account.
+
+Parameters:
+  TrailName:
+    Type: String
+    Default: management-events
+    Description: Name for the CloudTrail trail
+
+  LogRetentionDays:
+    Type: Number
+    Default: 365
+    AllowedValues: [90, 180, 365, 730, 1825, 3650]
+    Description: Days to retain logs in S3 (lifecycle expiry)
+
+  CloudWatchRetentionDays:
+    Type: Number
+    Default: 90
+    AllowedValues: [7, 14, 30, 60, 90, 180, 365]
+    Description: Days to retain logs in CloudWatch Logs
+
+  EnableDataEvents:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Also log S3 data-plane and Lambda invocation events (increases cost)
+
+  CentralLogBucketArn:
+    Type: String
+    Default: ""
+    Description: >
+      Leave empty to create a per-account S3 bucket (default).
+      Set to an existing central-logging bucket ARN to ship logs there instead.
+
+Conditions:
+  CreateLocalBucket: !Equals [!Ref CentralLogBucketArn, ""]
+  EnableDataEvts:    !Equals [!Ref EnableDataEvents, "true"]
+
+Resources:
+
+  # ── KMS key for CloudTrail encryption ────────────────────────────────────────
+  CloudTrailKMSKey:
+    Type: AWS::KMS::Key
+    Condition: CreateLocalBucket
+    DeletionPolicy: Retain
+    Properties:
+      Description: !Sub "CloudTrail log encryption key — ${AWS::AccountId}"
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: RootFullAccess
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: "kms:*"
+            Resource: "*"
+          - Sid: CloudTrailEncrypt
+            Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action:
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: "*"
+            Condition:
+              StringLike:
+                "kms:EncryptionContext:aws:cloudtrail:arn":
+                  !Sub "arn:aws:cloudtrail:*:${AWS::AccountId}:trail/*"
+          - Sid: CloudWatchLogsDecrypt
+            Effect: Allow
+            Principal:
+              Service: !Sub "logs.${AWS::Region}.amazonaws.com"
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: "*"
+
+  CloudTrailKMSAlias:
+    Type: AWS::KMS::Alias
+    Condition: CreateLocalBucket
+    Properties:
+      AliasName: !Sub "alias/cloudtrail-${AWS::AccountId}"
+      TargetKeyId: !Ref CloudTrailKMSKey
+
+  # ── S3 bucket for CloudTrail logs ─────────────────────────────────────────────
+  CloudTrailBucket:
+    Type: AWS::S3::Bucket
+    Condition: CreateLocalBucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub "cloudtrail-logs-${AWS::AccountId}-${AWS::Region}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !Ref CloudTrailKMSKey
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireLogs
+            Status: Enabled
+            ExpirationInDays: !Ref LogRetentionDays
+          - Id: TransitionToIA
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 90
+                StorageClass: STANDARD_IA
+              - TransitionInDays: 180
+                StorageClass: GLACIER
+
+  CloudTrailBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Condition: CreateLocalBucket
+    Properties:
+      Bucket: !Ref CloudTrailBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AclCheck
+            Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action: s3:GetBucketAcl
+            Resource: !GetAtt CloudTrailBucket.Arn
+          - Sid: WriteObjects
+            Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action: s3:PutObject
+            Resource: !Sub "${CloudTrailBucket.Arn}/AWSLogs/${AWS::AccountId}/*"
+            Condition:
+              StringEquals:
+                "s3:x-amz-acl": bucket-owner-full-control
+          - Sid: DenyHttp
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !GetAtt CloudTrailBucket.Arn
+              - !Sub "${CloudTrailBucket.Arn}/*"
+            Condition:
+              Bool:
+                "aws:SecureTransport": "false"
+
+  # ── CloudWatch Logs group ──────────────────────────────────────────────────────
+  CloudTrailLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/cloudtrail/${TrailName}"
+      RetentionInDays: !Ref CloudWatchRetentionDays
+      KmsKeyId: !If [CreateLocalBucket, !GetAtt CloudTrailKMSKey.Arn, !Ref "AWS::NoValue"]
+
+  # IAM role so CloudTrail can write to CloudWatch Logs
+  CloudTrailCWLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "CloudTrailCWLogsRole-${TrailName}"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CloudTrailCWLogs
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !GetAtt CloudTrailLogGroup.Arn
+
+  # ── The Trail ─────────────────────────────────────────────────────────────────
+  Trail:
+    Type: AWS::CloudTrail::Trail
+    DependsOn:
+      - CloudTrailLogGroup
+      - CloudTrailCWLogsRole
+    Properties:
+      TrailName: !Ref TrailName
+      IsLogging: true
+      IsMultiRegionTrail: true
+      IncludeGlobalServiceEvents: true
+      EnableLogFileValidation: true
+      S3BucketName: !If
+        - CreateLocalBucket
+        - !Ref CloudTrailBucket
+        - !Select [5, !Split [":", !Ref CentralLogBucketArn]]   # bucket name from ARN
+      KMSKeyId: !If [CreateLocalBucket, !Ref CloudTrailKMSKey, !Ref "AWS::NoValue"]
+      CloudWatchLogsLogGroupArn: !GetAtt CloudTrailLogGroup.Arn
+      CloudWatchLogsRoleArn: !GetAtt CloudTrailCWLogsRole.Arn
+      Tags:
+        - Key: ManagedBy
+          Value: CloudFormation
+        - Key: Purpose
+          Value: SecurityAudit
+      EventSelectors: !If
+        - EnableDataEvts
+        - - ReadWriteType: All
+            IncludeManagementEvents: true
+            DataResources:
+              - Type: AWS::S3::Object
+                Values: ["arn:aws:s3:::"]
+              - Type: AWS::Lambda::Function
+                Values: ["arn:aws:lambda"]
+        - - ReadWriteType: All
+            IncludeManagementEvents: true
+
+  # ── CloudWatch alarm: root account usage ──────────────────────────────────────
+  RootUsageMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref CloudTrailLogGroup
+      FilterPattern: >-
+        { $.userIdentity.type = "Root" && $.userIdentity.invokedBy NOT EXISTS
+          && $.eventType != "AwsServiceEvent" }
+      MetricTransformations:
+        - MetricNamespace: CloudTrailAlarms
+          MetricName: RootAccountUsage
+          MetricValue: "1"
+
+  RootUsageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "cloudtrail-root-account-usage-${AWS::AccountId}"
+      AlarmDescription: Root account was used — investigate immediately
+      MetricName: RootAccountUsage
+      Namespace: CloudTrailAlarms
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+  # ── CloudWatch alarm: console logins without MFA ─────────────────────────────
+  ConsoleNoMFAMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref CloudTrailLogGroup
+      FilterPattern: >-
+        { $.eventName = "ConsoleLogin" && $.additionalEventData.MFAUsed != "Yes" }
+      MetricTransformations:
+        - MetricNamespace: CloudTrailAlarms
+          MetricName: ConsoleLoginWithoutMFA
+          MetricValue: "1"
+
+  ConsoleNoMFAAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "cloudtrail-console-login-no-mfa-${AWS::AccountId}"
+      AlarmDescription: Console login without MFA detected
+      MetricName: ConsoleLoginWithoutMFA
+      Namespace: CloudTrailAlarms
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+Outputs:
+  TrailArn:
+    Description: ARN of the CloudTrail trail
+    Value: !GetAtt Trail.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-TrailArn"
+
+  LogBucketName:
+    Condition: CreateLocalBucket
+    Description: S3 bucket receiving CloudTrail logs
+    Value: !Ref CloudTrailBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-LogBucket"
+
+  KMSKeyArn:
+    Condition: CreateLocalBucket
+    Description: KMS key ARN used for encryption
+    Value: !GetAtt CloudTrailKMSKey.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-KMSKeyArn"
+
+  CloudWatchLogGroup:
+    Description: CloudWatch Log Group for real-time alerting
+    Value: !Ref CloudTrailLogGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-LogGroup"
