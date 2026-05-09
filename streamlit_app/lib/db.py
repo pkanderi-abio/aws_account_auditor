@@ -146,8 +146,55 @@ def login(email: str, password: str) -> tuple[bool, str]:
         st.session_state["access_token"] = session.access_token
         _save_cookies(result.user.id, result.user.email,
                       session.refresh_token or "")
-        st.session_state["cookie_init"] = True   # cookies already available this session
+        st.session_state["cookie_init"] = True
         return True, ""
+    except Exception as exc:
+        return False, str(exc)
+
+
+def signup(email: str, password: str) -> tuple[bool, str]:
+    """Returns (success, error_message)."""
+    try:
+        result = _anon_client().auth.sign_up({"email": email, "password": password})
+        if result.user and not result.session:
+            return True, "confirm"   # email confirmation required
+        if result.session:
+            st.session_state["user_id"]      = result.user.id
+            st.session_state["user_email"]   = result.user.email
+            st.session_state["access_token"] = result.session.access_token
+            _save_cookies(result.user.id, result.user.email,
+                          result.session.refresh_token or "")
+            st.session_state["cookie_init"] = True
+        return True, ""
+    except Exception as exc:
+        return False, str(exc)
+
+
+def get_oauth_url(provider: str, redirect_to: str) -> tuple[str, str]:
+    """Return (url, error). provider: 'google' | 'github' | 'azure'."""
+    try:
+        result = _anon_client().auth.sign_in_with_oauth({
+            "provider": provider,
+            "options": {"redirect_to": redirect_to, "scopes": "email"},
+        })
+        return result.url, ""
+    except Exception as exc:
+        return "", str(exc)
+
+
+def exchange_oauth_code(code: str) -> tuple[bool, str]:
+    """Exchange PKCE code from ?code= query param after OAuth redirect."""
+    try:
+        result = _anon_client().auth.exchange_code_for_session({"auth_code": code})
+        if result.session:
+            st.session_state["user_id"]      = result.user.id
+            st.session_state["user_email"]   = result.user.email
+            st.session_state["access_token"] = result.session.access_token
+            _save_cookies(result.user.id, result.user.email,
+                          result.session.refresh_token or "")
+            st.session_state["cookie_init"] = True
+            return True, ""
+        return False, "No session returned"
     except Exception as exc:
         return False, str(exc)
 
