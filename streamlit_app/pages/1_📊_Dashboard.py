@@ -166,7 +166,7 @@ if latest:
             xaxis=dict(showgrid=False, tickfont=dict(size=13)),
             yaxis=dict(showgrid=True, gridcolor="#f1f5f9", zeroline=False),
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig)
 
     with col_svc:
         st.markdown("#### Top Services")

@@ -104,7 +104,7 @@ fig.update_layout(
 col_radar, col_scores = st.columns([1, 2])
 with col_radar:
     st.subheader("Overall Posture")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig)
 
 with col_scores:
     st.subheader("Framework Scores")
