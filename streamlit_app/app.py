@@ -81,20 +81,15 @@ section[data-testid="stMain"] > div:first-child { padding:0 !important; }
 [data-testid="stAppViewContainer"],
 section[data-testid="stMain"] { background:#0b1628 !important; }
 
-/* Left column: transparent (dark bg from page) — fix padding */
-[data-testid="stColumn"]:first-child > div:first-child { padding:3rem 2.5rem 2rem !important; }
+/* Left column padding */
+div[data-testid="stColumn"]:not(:has([data-testid="stForm"])) > div:first-child { padding:3rem 2.5rem 2rem !important; }
 
-/* Force ALL text inside left column to be white/light */
-[data-testid="stColumn"]:first-child p,
-[data-testid="stColumn"]:first-child h1,
-[data-testid="stColumn"]:first-child h2,
-[data-testid="stColumn"]:first-child h3,
-[data-testid="stColumn"]:first-child label,
-[data-testid="stColumn"]:first-child div,
-[data-testid="stColumn"]:first-child span { color:#e2e8f0 !important; }
+/* Remove white box from logo image container */
+div[data-testid="stColumn"]:not(:has([data-testid="stForm"])) [data-testid="stImage"],
+div[data-testid="stColumn"]:not(:has([data-testid="stForm"])) .stImage { background:transparent !important; box-shadow:none !important; }
 
-/* Right column: white card */
-[data-testid="stColumn"]:last-child > div:first-child {
+/* Right column: white card — only the column that contains the login form */
+div[data-testid="stColumn"]:has([data-testid="stForm"]) > div:first-child {
     background:#ffffff;
     border-radius:20px;
     padding:3rem 2.5rem !important;
@@ -104,9 +99,9 @@ section[data-testid="stMain"] { background:#0b1628 !important; }
 }
 
 /* Right column text: dark */
-[data-testid="stColumn"]:last-child p,
-[data-testid="stColumn"]:last-child label,
-[data-testid="stColumn"]:last-child span { color:#334155 !important; }
+div[data-testid="stColumn"]:has([data-testid="stForm"]) p,
+div[data-testid="stColumn"]:has([data-testid="stForm"]) label,
+div[data-testid="stColumn"]:has([data-testid="stForm"]) span { color:#334155 !important; }
 
 /* OAuth buttons */
 .oauth-btn {
@@ -144,9 +139,7 @@ left, right = st.columns([1, 1], gap="small")
 with left:
     # Logo — st.image handles binary natively, no base64 in HTML
     if os.path.exists(_LOGO):
-        lc, _ = st.columns([1, 2])
-        with lc:
-            st.image(_LOGO, use_container_width=True)
+        st.image(_LOGO, width=140)
 
     # Badges
     st.markdown("""
