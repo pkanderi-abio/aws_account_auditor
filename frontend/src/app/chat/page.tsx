@@ -1,6 +1,6 @@
 "use client";
 export const dynamic = 'force-dynamic';
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { api, type AuditJob, type ChatMessage } from "@/lib/api";
@@ -15,7 +15,7 @@ const SUGGESTED_QUESTIONS = [
   "Give me a remediation plan for High severity findings.",
 ];
 
-export default function ChatPage() {
+function ChatPageInner() {
   const router       = useRouter();
   const params       = useSearchParams();
   const jobIdParam   = params.get("job") ?? "";
@@ -235,3 +235,4 @@ export default function ChatPage() {
     </>
   );
 }
+export default function ChatPage() { return <Suspense fallback={null}><ChatPageInner /></Suspense>; }
