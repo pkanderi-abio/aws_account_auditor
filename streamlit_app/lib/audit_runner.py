@@ -37,7 +37,11 @@ def run_audit(job_id: str, user_id: str, config: dict, account_ids: list[str]):
     Updates the audit_jobs row in Supabase as it progresses.
     """
     # Import db inside the thread to avoid Streamlit context issues
-    from streamlit_app.lib import db as _db
+    import sys as _sys, os as _os
+    _lib = _os.path.dirname(_os.path.abspath(__file__))
+    if _lib not in _sys.path:
+        _sys.path.insert(0, _lib)
+    import db as _db
 
     try:
         import boto3
@@ -117,7 +121,7 @@ def run_audit(job_id: str, user_id: str, config: dict, account_ids: list[str]):
     except Exception as exc:
         logger.error("Audit job %s failed: %s", job_id, exc)
         try:
-            from streamlit_app.lib import db as _db2
+            _db2 = _db
             _db2.update_audit_job(job_id, {
                 "status": "failed",
                 "completed_at": datetime.now(timezone.utc).isoformat(),

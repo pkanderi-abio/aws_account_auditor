@@ -199,7 +199,7 @@ aws cloudformation delete-stack-set \\
 
 aws iam delete-access-key \\
   --user-name auditor-saas-app \\
-  --access-key-id AKIAZI2LGVHSOLHISGNO
+  --access-key-id <YOUR-ACCESS-KEY-ID>
 
 aws iam delete-user --user-name auditor-saas-app`}
               </CodeBlock>

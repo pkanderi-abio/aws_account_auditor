@@ -4,21 +4,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-### Setup
+### Setup (CLI auditor only)
 ```bash
 python3 -m venv venv
 source venv/bin/activate
 pip install -r auditor/requirements.txt
 ```
 
-### Run the auditor (CLI)
+### Run the auditor (CLI — local reports)
 ```bash
 python3 -m auditor.main
 ```
 
-### Launch the Streamlit dashboard
+### Launch the SaaS Streamlit app (primary)
 ```bash
-streamlit run auditor/dashboard.py
+pip install -r requirements.txt
+streamlit run streamlit_app/app.py
 ```
 
 ### Run tests
@@ -28,19 +29,61 @@ python3 -m pytest auditor/tests/
 
 ## Architecture
 
-This tool audits multiple AWS accounts for security, IAM, network exposure, cost, and compliance issues. It uses a two-hop role assumption chain and runs all audit modules concurrently.
+Two modes exist side-by-side:
 
-### Auth chain
-1. Local AWS SSO profile (configured in `auditor/config.yaml` as `sso_profile`) authenticates to the management account.
-2. `main.py` assumes the `AuditDeployer` role (in the management account) using `deployer_role_arn`.
-3. For each target account, the AuditDeployer session then assumes `AuditRole` (deployed to every account via CloudFormation StackSet) using ExternalId `audit-access`.
+### 1. SaaS app — `streamlit_app/` (primary, deployed to Streamlit Cloud)
+Multi-tenant Streamlit application with Supabase backend. Users sign in, configure their AWS role chain via the UI, and trigger audits that run in background threads.
 
-### Execution flow
-`main.py` → loads `config.yaml` → resolves account list (from config or AWS Organizations) → for each account assumes AuditRole → calls `orchestrator.run_all_audits()` → saves results as JSON/CSV/HTML in `auditor/reports/`.
+**Entry point:** `streamlit_app/app.py`  
+**Dependencies:** `requirements.txt` (root)  
+**Deployed at:** `awsauditor.streamlit.app`
 
-The orchestrator (`auditor/modules/orchestrator.py`) runs all enabled audit modules concurrently via `ThreadPoolExecutor`. Each module receives `(session, account_id, regions)` and returns a list of findings.
+#### Page layout (`streamlit_app/pages/`)
+| File | Purpose |
+|---|---|
+| `1_📊_Dashboard.py` | Audit list, trigger new audit, summary charts |
+| `2_🔍_Findings.py` | Filter/browse findings, AI remediation per finding |
+| `3_📋_Compliance.py` | Compliance scorecards (CIS, PCI, SOC2, HIPAA, NIST) |
+| `4_🤖_AI.py` | AI analysis, chat, executive report generation |
+| `5_⚙️_Config.py` | AWS role chain + account configuration (saved to Supabase) |
+| `6_🛠️_Settings.py` | AI provider status, data management, environment diagnostics |
 
-### Audit modules (`auditor/modules/`)
+#### Lib layer (`streamlit_app/lib/`)
+- `db.py` — all Supabase reads/writes (auth, config, accounts, audit jobs, findings, AI analyses). Uses service role key server-side. Cookie-based session persistence via `streamlit-cookies-controller`.
+- `audit_runner.py` — runs `auditor/` modules in a daemon thread, updates Supabase as it progresses.
+- `ai_client.py` — Groq (cloud, default) or Ollama (local) LLM calls for analysis, remediation, and report generation.
+
+#### Import pattern (all pages must use this — Python 3.14 compatibility)
+```python
+_LIB = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'lib')
+if _LIB not in sys.path:
+    sys.path.insert(0, _LIB)
+import db, ai_client   # direct imports, NOT from streamlit_app.lib import ...
+```
+
+#### Secrets (`.streamlit/secrets.toml`, never committed)
+```toml
+[supabase]
+url = "https://xxx.supabase.co"
+anon_key = "eyJ..."
+service_role_key = "eyJ..."
+
+GROQ_API_KEY = "gsk_..."
+app_url = "https://awsauditor.streamlit.app"
+```
+
+### 2. CLI auditor — `auditor/` (local use, produces JSON/CSV/HTML reports)
+Standalone tool. Auth chain: local SSO profile → AuditDeployer role → AuditRole per account.
+
+**Config:** `auditor/config.yaml` (gitignored — never commit)  
+**Reports:** `auditor/reports/` (gitignored — may contain real account data)
+
+#### Execution flow
+`main.py` → loads `config.yaml` → resolves account list → assumes AuditRole per account → `orchestrator.run_all_audits()` → saves to `auditor/reports/`
+
+The orchestrator (`auditor/modules/orchestrator.py`) runs all modules concurrently via `ThreadPoolExecutor`. Each module receives `(session, account_id, regions)` and returns a list of findings.
+
+#### Audit modules (`auditor/modules/`)
 | Module | Key file |
 |---|---|
 | IAM best practices | `iam_audit.py` |
@@ -51,23 +94,22 @@ The orchestrator (`auditor/modules/orchestrator.py`) runs all enabled audit modu
 | Security Hub findings | `security_best_practices.py` |
 | Cyber posture | `aws_cyber_audit.py` |
 
-### Finding schema
-All modules must return findings that conform to `auditor/modules/constants.py:STANDARD_FINDING`:
+#### Finding schema
+All modules must return findings conforming to `auditor/modules/constants.py:STANDARD_FINDING`:
 ```
 AccountId, Region, Service, Check, Status (PASS/WARNING/FAIL/ERROR/SKIPPED),
 Severity (Low/Medium/High/Critical), FindingType, Details, Recommendation,
 Timestamp (ISO), Compliance (dict, e.g. {"CIS": "3.1"})
 ```
-`main.py` filters out access-denied findings (checking `Details` for known error strings) and applies severity overrides from config before saving.
-
-### Dashboard
-`auditor/dashboard.py` is a standalone Streamlit app. It reads the latest JSON report from `auditor/reports/`, provides filter controls (account, region, service, severity), and renders Plotly charts. It does not call AWS directly.
 
 ### Infrastructure files (root level)
-- `auditrole_stackset_template.yaml` — CloudFormation template deployed via StackSet to create `AuditRole` in every target account.
-- `deploy_audit_deployer.yaml` — CloudFormation template for the `AuditDeployer` role in the management account.
-- `delete_role.sh`, `delete_stackset_instances.sh`, `force_delete_auditrole_stacks.py`, `delete_createauditrole_stacks.py` — cleanup utilities for removing StackSet instances and roles.
-- `auto-deploy.json` — StackSet auto-deployment configuration.
+- `auditrole_stackset_template.yaml` — CloudFormation StackSet template; creates `AuditRole` in every target account.
+- `cloudtrail_stackset_template.yaml` — CloudFormation StackSet template; enables CloudTrail across all accounts with CIS alarms.
+- `deploy_audit_deployer.yaml` — CloudFormation template for `AuditDeployer` role in the management account.
+- `delete_role.sh`, `delete_stackset_instances.sh`, `force_delete_auditrole_stacks.py`, `delete_createauditrole_stacks.py` — cleanup utilities.
+- `auto-deploy.json` — StackSet auto-deployment config.
 
-### Configuration (`auditor/config.yaml`)
-Key fields: `sso_profile`, `deployer_role_arn`, `audit_role_name`, `report_dir`, `regions`, `accounts`, `use_organizations` (when true, accounts are fetched from AWS Organizations instead of the static list), `severity_overrides` (map of check name → severity).
+### Dead code / unused
+- `backend/` — FastAPI + Celery backend scaffolded during SaaS conversion. Replaced by Streamlit + Supabase direct. Not deployed.
+- `frontend/` — Next.js frontend scaffolded during SaaS conversion. Not deployed; SaaS UI is in `streamlit_app/`.
+- `auditor/dashboard.py` — old local-only Streamlit dashboard. Superseded by `streamlit_app/`.
