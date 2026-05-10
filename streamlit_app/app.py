@@ -1,6 +1,6 @@
 """
 Entry point for Streamlit Community Cloud.
-Run locally:  streamlit run streamlit_app/app.py
+Run locally: streamlit run streamlit_app/app.py
 """
 import sys, os
 _LIB = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lib')
@@ -20,15 +20,15 @@ st.set_page_config(
 # ── Global CSS (all pages) ────────────────────────────────────────────────────
 st.markdown("""
 <style>
-  [data-testid="stSidebar"]      { background:#0f172a; }
-  [data-testid="stSidebar"] *    { color:#e2e8f0 !important; }
-  [data-testid="stSidebarNav"] a { color:#e2e8f0 !important; }
-  .metric-card { background:white; border-radius:12px; padding:1rem;
-                 border:1px solid #e5e7eb; box-shadow:0 1px 3px rgba(0,0,0,.08); }
-  .sev-critical{color:#dc2626;font-weight:700}
-  .sev-high    {color:#f97316;font-weight:700}
-  .sev-medium  {color:#eab308;font-weight:700}
-  .sev-low     {color:#22c55e;font-weight:700}
+[data-testid="stSidebar"] { background:#0f172a; }
+[data-testid="stSidebar"] * { color:#e2e8f0 !important; }
+[data-testid="stSidebarNav"] a { color:#e2e8f0 !important; }
+.metric-card { background:white; border-radius:12px; padding:1rem;
+               border:1px solid #e5e7eb; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+.sev-critical{color:#dc2626;font-weight:700}
+.sev-high    {color:#f97316;font-weight:700}
+.sev-medium  {color:#eab308;font-weight:700}
+.sev-low     {color:#22c55e;font-weight:700}
 </style>
 """, unsafe_allow_html=True)
 
@@ -37,11 +37,11 @@ params = st.query_params
 if "code" in params and not db.is_logged_in():
     with st.spinner("Completing sign-in…"):
         ok, err = db.exchange_oauth_code(params["code"])
-    if ok:
-        st.query_params.clear()
-        st.rerun()
-    else:
-        st.error(f"OAuth sign-in failed: {err}")
+        if ok:
+            st.query_params.clear()
+            st.rerun()
+        else:
+            st.error(f"OAuth sign-in failed: {err}")
 
 # ── Already logged in → go to dashboard ──────────────────────────────────────
 db.restore_session()
@@ -81,8 +81,14 @@ section[data-testid="stMain"] > div:first-child { padding:0 !important; }
 [data-testid="stAppViewContainer"],
 section[data-testid="stMain"] { background:#0b1628 !important; }
 
-/* Left column padding */
-div[data-testid="stColumn"]:not(:has([data-testid="stForm"])) > div:first-child { padding:3rem 2.5rem 2rem !important; }
+/* Left column: add comfortable padding and vertical centering */
+div[data-testid="stColumn"]:not(:has([data-testid="stForm"])) > div:first-child {
+    padding:4rem 3rem 3rem 4rem !important;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    min-height:100vh;
+}
 
 /* Remove white box from logo image container */
 div[data-testid="stColumn"]:not(:has([data-testid="stForm"])) [data-testid="stImage"],
@@ -93,9 +99,10 @@ div[data-testid="stColumn"]:has([data-testid="stForm"]) > div:first-child {
     background:#ffffff;
     border-radius:20px;
     padding:3rem 2.5rem !important;
-    margin:2rem 2rem 2rem 0;
+    margin:2rem 2rem 2rem 1rem;
     box-shadow:0 25px 80px rgba(0,0,0,.45);
-    min-height:calc(100vh - 4rem);
+    min-height:auto;
+    align-self:center;
 }
 
 /* Right column text: dark */
@@ -131,7 +138,7 @@ div[data-testid="stColumn"]:has([data-testid="stForm"]) span { color:#334155 !im
 """, unsafe_allow_html=True)
 
 # ── Two-column layout ─────────────────────────────────────────────────────────
-left, right = st.columns([1, 1], gap="small")
+left, right = st.columns([1.15, 0.85], gap="medium")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # LEFT: logo via st.image, then small independent HTML blocks
@@ -145,35 +152,35 @@ with left:
     st.markdown("""
 <div style="display:flex;flex-wrap:wrap;gap:8px;margin:1.2rem 0 1rem">
   <span style="background:rgba(59,130,246,.25);color:#93c5fd;padding:4px 12px;
-               border-radius:99px;font-size:.7rem;font-weight:700;letter-spacing:.05em">MULTI-ACCOUNT</span>
+    border-radius:99px;font-size:.7rem;font-weight:700;letter-spacing:.05em">MULTI-ACCOUNT</span>
   <span style="background:rgba(168,85,247,.25);color:#c4b5fd;padding:4px 12px;
-               border-radius:99px;font-size:.7rem;font-weight:700;letter-spacing:.05em">AI-POWERED</span>
+    border-radius:99px;font-size:.7rem;font-weight:700;letter-spacing:.05em">AI-POWERED</span>
   <span style="background:rgba(16,185,129,.25);color:#6ee7b7;padding:4px 12px;
-               border-radius:99px;font-size:.7rem;font-weight:700;letter-spacing:.05em">CIS · PCI · SOC2</span>
+    border-radius:99px;font-size:.7rem;font-weight:700;letter-spacing:.05em">CIS · PCI · SOC2</span>
 </div>""", unsafe_allow_html=True)
 
     # Headline + sub
     st.markdown("""
-<h1 style="color:#fff !important;font-size:1.9rem;font-weight:800;line-height:1.2;margin:0 0 .7rem">
+<h1 style="color:#ffffff !important;font-size:2.2rem;font-weight:800;line-height:1.2;margin:0 0 .7rem">
   Unified AWS Security<br>Audit Platform
 </h1>
-<p style="color:#94a3b8 !important;font-size:.93rem;line-height:1.65;margin-bottom:1.8rem">
+<p style="color:#94a3b8 !important;font-size:.95rem;line-height:1.7;margin-bottom:2rem">
   Continuous compliance, AI-driven insights, and<br>
   actionable remediation across all your AWS accounts.
 </p>""", unsafe_allow_html=True)
 
     # Feature items — each a small, isolated block
     FEATURES = [
-        ("rgba(59,130,246,.18)",  "🔍", "#f1f5f9", "Multi-account auditing",     "#64748b", "IAM, network, cost &amp; public exposure"),
-        ("rgba(168,85,247,.18)",  "🤖", "#f1f5f9", "AI-powered remediation",     "#64748b", "CLI &amp; CloudFormation fixes instantly"),
-        ("rgba(16,185,129,.18)",  "📋", "#f1f5f9", "Compliance scorecards",      "#64748b", "CIS, PCI-DSS, SOC 2, HIPAA, NIST 800-53"),
-        ("rgba(245,158,11,.18)",  "🔒", "#f1f5f9", "Zero credential storage",    "#64748b", "Role-based access — no AWS keys saved"),
+        ("rgba(59,130,246,.18)",  "🔍", "#f1f5f9", "Multi-account auditing",    "#94a3b8", "IAM, network, cost &amp; public exposure"),
+        ("rgba(168,85,247,.18)",  "🤖", "#f1f5f9", "AI-powered remediation",    "#94a3b8", "CLI &amp; CloudFormation fixes instantly"),
+        ("rgba(16,185,129,.18)",  "📋", "#f1f5f9", "Compliance scorecards",     "#94a3b8", "CIS, PCI-DSS, SOC 2, HIPAA, NIST 800-53"),
+        ("rgba(245,158,11,.18)",  "🔒", "#f1f5f9", "Zero credential storage",   "#94a3b8", "Role-based access — no AWS keys saved"),
     ]
     for bg, icon, tc, title, sc, sub in FEATURES:
         st.markdown(f"""
 <div style="display:flex;align-items:flex-start;gap:13px;margin-bottom:.9rem">
   <div style="width:36px;height:36px;border-radius:10px;background:{bg};flex-shrink:0;
-              display:flex;align-items:center;justify-content:center;font-size:1rem">{icon}</div>
+    display:flex;align-items:center;justify-content:center;font-size:1rem">{icon}</div>
   <div>
     <div style="color:{tc} !important;font-weight:600;font-size:.88rem">{title}</div>
     <div style="color:{sc} !important;font-size:.8rem;margin-top:1px">{sub}</div>
@@ -182,11 +189,11 @@ with left:
 
     # Footer
     st.markdown("""
-<div style="margin-top:2rem;padding-top:1rem;border-top:1px solid #1e293b;
-            color:#334155 !important;font-size:.76rem">
+<div style="margin-top:2.5rem;padding-top:1rem;border-top:1px solid #1e3a5f;
+  color:#94a3b8 !important;font-size:.76rem">
   © 2025 H&amp;H IT Solutions ·
   <a href="mailto:info@hhitsolutions.com"
-     style="color:#475569 !important;text-decoration:none">info@hhitsolutions.com</a>
+    style="color:#60a5fa !important;text-decoration:none">info@hhitsolutions.com</a>
 </div>""", unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -236,12 +243,12 @@ with right:
             email    = st.text_input("Email address", placeholder="you@example.com")
             password = st.text_input("Password", type="password", placeholder="Enter your password")
             submitted = st.form_submit_button("Sign in →", use_container_width=True, type="primary")
-        if submitted:
-            ok, err = db.login(email, password)
-            if ok:
-                st.rerun()
-            else:
-                st.error(err)
+            if submitted:
+                ok, err = db.login(email, password)
+                if ok:
+                    st.rerun()
+                else:
+                    st.error(err)
 
     with tab_up:
         with st.form("signup_form"):
@@ -251,19 +258,19 @@ with right:
             new_pw2   = st.text_input("Confirm password", type="password",
                                       placeholder="Re-enter password", key="su_pw2")
             register  = st.form_submit_button("Create account →", use_container_width=True, type="primary")
-        if register:
-            if new_pw != new_pw2:
-                st.error("Passwords don't match.")
-            elif len(new_pw) < 8:
-                st.error("Password must be at least 8 characters.")
-            else:
-                ok, status = db.signup(new_email, new_pw)
-                if not ok:
-                    st.error(status)
-                elif status == "confirm":
-                    st.success("✅ Check your email to confirm your account, then sign in.")
+            if register:
+                if new_pw != new_pw2:
+                    st.error("Passwords don't match.")
+                elif len(new_pw) < 8:
+                    st.error("Password must be at least 8 characters.")
                 else:
-                    st.rerun()
+                    ok, status = db.signup(new_email, new_pw)
+                    if not ok:
+                        st.error(status)
+                    elif status == "confirm":
+                        st.success("✅ Check your email to confirm your account, then sign in.")
+                    else:
+                        st.rerun()
 
     st.markdown("""
 <p style="color:#94a3b8 !important;font-size:.74rem;text-align:center;margin-top:1.5rem;line-height:1.6">
