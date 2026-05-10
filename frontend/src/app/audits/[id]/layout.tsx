@@ -1,7 +1,9 @@
+import { ReactNode } from 'react';
+
 export function generateStaticParams() {
-    return [];
+      return [];
 }
 
-export default function Layout({ children }: { children: React.ReactNode }) {
-    return <>{children}</>>;
+export default function Layout({ children }: { children: ReactNode }) {
+      return children as unknown as JSX.Element;
 }
